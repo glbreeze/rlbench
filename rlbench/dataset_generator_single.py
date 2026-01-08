@@ -53,8 +53,8 @@ def mark_com_attached(shape: Shape, name_suffix="_COM_MARK", size=0.03):
     d = get_or_create_dummy(shape.get_name() + name_suffix, size=size)
     d.set_parent(shape)  # attach to the cracker
     d.set_position(com_local.tolist(), relative_to=shape)  # local CoM
-    return com_local, m
-
+    com_world = np.array(d.get_position())
+    return com_local, com_world, m, d
 
 
 def to_jsonable(x):
@@ -263,7 +263,7 @@ def collect_single_process(tasks, args):
     obs_config = make_obs_config(img_size, args.renderer)
 
     rlbench_env = Environment(
-        action_mode=MoveArmThenGripper(JointVelocity(), Discrete()),
+        action_mode=MoveArmThenGripper(JointVelocity(), Discrete(attach_grasped_objects=False)),
         obs_config=obs_config,
         arm_max_velocity=args.arm_max_velocity,
         arm_max_acceleration=args.arm_max_acceleration,
@@ -294,29 +294,29 @@ def collect_single_process(tasks, args):
                 # inject once per variation reset, same physics for all demos in this variation
                 physics_meta_for_variation = inject_task_physics(task_env)
                 
-                # ---------- start debugging ------ 
-                #import pdb; pdb.set_trace()
+                # # ---------- start debugging ------ 
+                # #import pdb; pdb.set_trace()
                 pyrep = rlbench_env._pyrep
                 g = [x for x in task_env._task.groceries if x.get_name() == 'crackers'][0]
 
-                com_local, com_world, m_eff = mark_com_attached(g)
-                print("[phys] crackers mass:", m_eff, "com_local:", com_local, "com_world:", com_world)
+                # com_local, com_world, m_eff = mark_com_attached(g)
+                # print("[phys] crackers mass:", m_eff, "com_local:", com_local, "com_world:", com_world)
 
                 for _ in range(50):
                     pyrep.step()
                 
-                # --------  1) visually confirm COM/mass
-                com_local, com_world, m_eff = mark_com_attached(g)
-                print("[phys] crackers mass:", m_eff, "com_local:", com_local, "com_world:", com_world)
+                # # --------  1) visually confirm COM/mass
+                # com_local, com_world, m_eff = mark_com_attached(g)
+                # print("[phys] crackers mass:", m_eff, "com_local:", com_local, "com_world:", com_world)
 
                 # 2) quick stability test (optional)
-                for _ in range(50): pyrep.step()  # settle
-                dp, do, *_ = tabletop_push_test(pyrep, g, force=np.array([2.0,0,0]), steps=30)
-                print("[push] dp:", dp, "do:", do)
+                # for _ in range(50): pyrep.step()  # settle
+                # dp, do, *_ = tabletop_push_test(pyrep, g, force=np.array([2.0,0,0]), steps=30)
+                # print("[push] dp:", dp, "do:", do)
 
                 # 3) end-to-end: does scripted demo still succeed?
-                ok, demo, err = try_collect_demo(task_env, attempts=2)
-                print("[demo] success:", ok, "err:", err)
+                # ok, demo, err = try_collect_demo(task_env, attempts=2)
+                # print("[demo] success:", ok, "err:", err)
 
                 
 

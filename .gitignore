@@ -117,3 +117,5 @@ dmypy.json
 .pyre/
 
 index.html
+
+physics_data/

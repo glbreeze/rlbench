@@ -147,10 +147,16 @@ def inject_task_physics(task_env, rng=None, spec=None):
     mu0 = float(g.get_bullet_friction())
 
     # ballast
-    a_lo, a_hi = spec["mass_frac"]
-    alpha = float(rng.uniform(a_lo, a_hi))
-    alpha = 5.0            # -----------------
-    mb = alpha * m0
+    ballast_mass_override = getattr(task_env, '_ballast_mass_override', None)
+
+    if ballast_mass_override is not None:
+        mb = float(ballast_mass_override)
+        alpha = mb / m0 if m0 > 0 else 0.0
+    else:
+        a_lo, a_hi = spec["mass_frac"]
+        alpha = float(rng.uniform(a_lo, a_hi))
+        alpha = 5.0
+        mb = alpha * m0
 
     new_mass, new_I, new_com = add_point_mass_ballast_and_set(
         g, ballast_mass=mb, margin_ratio=0.05

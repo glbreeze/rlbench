@@ -424,9 +424,9 @@ class Scene(object):
                                 self._demo_record_step(
                                     demo, record, callable_each_step)
 
-                    if 'close_gripper(' in ext:
-                        for g_obj in self.task.get_graspable_objects():
-                            gripper.grasp(g_obj)
+                    # if 'close_gripper(' in ext:
+                    #     for g_obj in self.task.get_graspable_objects():
+                    #         gripper.grasp(g_obj)
 
                     self._demo_record_step(demo, record, callable_each_step)
 
