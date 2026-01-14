@@ -10,6 +10,7 @@ from pyrep.objects.shape import Shape
 
 import rlbench.backend.task as task
 from rlbench import ObservationConfig
+from pyrep.objects.shape import Shape
 from rlbench.action_modes.action_mode import MoveArmThenGripper
 from rlbench.action_modes.arm_action_modes import JointVelocity
 from rlbench.action_modes.gripper_action_modes import Discrete
@@ -291,32 +292,19 @@ def collect_single_process(tasks, args):
                 task_env._ballast_mass_override = args.ballast_mass_override
                 task_env._ballast_offset_override = args.ballast_offset_override
 
+                gripper = task_env._robot.gripper
+                for joint in gripper.joints:
+                    joint.set_joint_force(200.0)
+                    
+                Shape('Panda_leftfinger_respondable').set_bullet_friction(5.0)
+                Shape('Panda_rightfinger_respondable').set_bullet_friction(5.0)
+
                 # inject once per variation reset, same physics for all demos in this variation
                 physics_meta_for_variation = inject_task_physics(task_env)
-                
-                # # ---------- start debugging ------ 
-                # #import pdb; pdb.set_trace()
+
                 pyrep = rlbench_env._pyrep
-                g = [x for x in task_env._task.groceries if x.get_name() == 'crackers'][0]
-
-                # com_local, com_world, m_eff = mark_com_attached(g)
-                # print("[phys] crackers mass:", m_eff, "com_local:", com_local, "com_world:", com_world)
-
                 for _ in range(50):
                     pyrep.step()
-                
-                # # --------  1) visually confirm COM/mass
-                # com_local, com_world, m_eff = mark_com_attached(g)
-                # print("[phys] crackers mass:", m_eff, "com_local:", com_local, "com_world:", com_world)
-
-                # 2) quick stability test (optional)
-                # for _ in range(50): pyrep.step()  # settle
-                # dp, do, *_ = tabletop_push_test(pyrep, g, force=np.array([2.0,0,0]), steps=30)
-                # print("[push] dp:", dp, "do:", do)
-
-                # 3) end-to-end: does scripted demo still succeed?
-                # ok, demo, err = try_collect_demo(task_env, attempts=2)
-                # print("[demo] success:", ok, "err:", err)
 
                 
 
@@ -412,8 +400,6 @@ def parse_args():
                     help='If set, force ballast mass (kg) for all groceries to this value.')
     parser.add_argument('--ballast_offset_override', nargs=3, type=float, default=None,
                     help='If set, force ballast local offset (x y z) in meters.')
-
-
 
     return parser.parse_args()
 

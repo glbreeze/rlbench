@@ -149,23 +149,22 @@ def inject_task_physics(task_env, rng=None, spec=None):
     # ballast
     ballast_mass_override = getattr(task_env, '_ballast_mass_override', None)
 
-    if ballast_mass_override is not None:
+    if ballast_mass_override is not None and ballast_mass_override > 0:
         mb = float(ballast_mass_override)
         alpha = mb / m0 if m0 > 0 else 0.0
     else:
-        a_lo, a_hi = spec["mass_frac"]
-        alpha = float(rng.uniform(a_lo, a_hi))
-        alpha = 5.0
-        mb = alpha * m0
+        alpha = 0.0
+        mb = 0.0
 
-    new_mass, new_I, new_com = add_point_mass_ballast_and_set(
-        g, ballast_mass=mb, margin_ratio=0.05
-    )
+    if mb > 0:
+        new_mass, new_I, new_com = add_point_mass_ballast_and_set(
+            g, ballast_mass=mb, margin_ratio=0.05
+        )
+    else:
+        new_mass, new_I, new_com, _ = simGetShapeMassAndInertia(h)
 
-    # friction
-    mu_lo, mu_hi = spec["mu"]
-    mu1 = float(rng.uniform(mu_lo, mu_hi))
-    g.set_bullet_friction(mu1)
+    mu0_original = float(g.get_bullet_friction())
+    mu1 = mu0_original
 
     meta["objects"][name] = {
         "m0": m0,
