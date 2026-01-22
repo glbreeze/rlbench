@@ -106,6 +106,19 @@ def try_collect_demo(task_env, attempts=3):
 
 
 
+def convert_to_json_serializable(obj):
+    if isinstance(obj, dict):
+        return {key: convert_to_json_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_json_serializable(item) for item in obj]
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, np.generic):
+        return obj.item()
+    else:
+        return obj
+
+
 def check_and_make(dir_path: str):
     os.makedirs(dir_path, exist_ok=True)
 
@@ -328,35 +341,85 @@ def collect_single_process(tasks, args):
                 for ex_idx in range(args.episodes_per_task):
                     print(f"Task: {task_name} | Variation: {var} | Demo: {ex_idx}")
 
+                    demo_collected = False
+                    demo = None
+                    final_exception = None
+
                     attempts = args.max_attempts
-                    while attempts > 0:
+                    for attempt in range(attempts):
                         try:
                             (demo,) = task_env.get_demos(amount=1, live_demos=True)
+                            demo_collected = True
+                            if demo.success:
+                                print(f"Attempt {attempt + 1}/{attempts}: SUCCESS")
+                                if demo.success_details:
+                                    met_conditions = sum(1 for c in demo.success_details.get('success_conditions', []) if c['met'])
+                                    total_conditions = demo.success_details.get('num_success_conditions', 0)
+                                    print(f"    Conditions met: {met_conditions}/{total_conditions}")
+                                break
+                            else:
+                                print(f"Attempt {attempt + 1}/{attempts}: FAILED (task not completed)")
+                                if demo.success_details:
+                                    unmet_conditions = [
+                                        f"{c['type']}[{c['index']}]"
+                                        for c in demo.success_details.get('success_conditions', [])
+                                        if not c['met']
+                                    ]
+                                if attempt + 1 < attempts:
+                                    continue
+                                else:
+                                    break
+
                         except Exception as e:
-                            attempts -= 1
-                            if attempts > 0:
+                            final_exception = e
+                            print(f"Attempt {attempt + 1}/{attempts}: ERROR - {type(e).__name__}: {str(e)[:100]}")
+                            if attempt + 1 < attempts:
                                 continue
+                            else:
+                                problem = (
+                                    f"Failed collecting task {task_name} "
+                                    f"(variation: {var}, example: {ex_idx}). "
+                                    f"All {attempts} attempts failed with exceptions.\n{str(e)}\n"
+                                )
+                                print(problem)
+                                tasks_with_problems += problem
+                                abort_variation = True
+                                break
 
-                            problem = (
-                                f"Failed collecting task {task_name} "
-                                f"(variation: {var}, example: {ex_idx}). "
-                                f"Skipping this variation.\n{str(e)}\n"
-                            )
-                            print(problem)
-                            tasks_with_problems += problem
-                            abort_variation = True
-                            break
-
+                    if demo_collected and demo is not None:
                         episode_path = os.path.join(episodes_path, EPISODE_FOLDER % ex_idx)
                         check_and_make(episode_path)
-
                         save_demo(demo, episode_path)
-
+                        success_info = {
+                            "success": demo.success,
+                            "num_reset_attempts": demo.num_reset_attempts,
+                            "variation_index": var,
+                            "episode_index": ex_idx,
+                            "task_name": task_name,
+                            "details": demo.success_details
+                        }
+                        success_info = convert_to_json_serializable(success_info)
+                        with open(os.path.join(episode_path, "success_info.json"), "w") as f:
+                            json.dump(success_info, f, indent=2)
                         with open(os.path.join(episode_path, "physics.json"), "w") as f:
                             json.dump(to_jsonable(physics_meta_for_variation), f, indent=2)
-
-
-                        break
+                        status_str = "SUCCESS" if demo.success else "FAILED"
+                    elif not demo_collected and final_exception:
+                        episode_path = os.path.join(episodes_path, EPISODE_FOLDER % ex_idx)
+                        check_and_make(episode_path)
+                        error_info = {
+                            "success": False,
+                            "error": True,
+                            "exception_type": type(final_exception).__name__,
+                            "exception_message": str(final_exception),
+                            "variation_index": var,
+                            "episode_index": ex_idx,
+                            "task_name": task_name,
+                            "attempts": attempts
+                        }
+                        error_info = convert_to_json_serializable(error_info)
+                        with open(os.path.join(episode_path, "error_info.json"), "w") as f:
+                            json.dump(error_info, f, indent=2)
 
                     if abort_variation:
                         break

@@ -299,6 +299,89 @@ class Task(object):
         should_terminate = all_met
         return all_met, should_terminate
 
+    def get_success_details(self) -> dict:
+        def get_condition_info(cond, index):
+            condition_type = type(cond).__name__
+            met, term = cond.condition_met()
+
+            info = {
+                "index": index,
+                "type": condition_type,
+                "met": bool(met),
+                "terminate": bool(term)
+            }
+
+            if hasattr(cond, '_conditions'):
+                info["sub_conditions"] = [
+                    get_condition_info(sub_cond, i)
+                    for i, sub_cond in enumerate(cond._conditions)
+                ]
+                if hasattr(cond, '_order_matters'):
+                    info["order_matters"] = cond._order_matters
+                if hasattr(cond, '_current_condition_index'):
+                    info["current_index"] = cond._current_condition_index
+
+            if condition_type == "JointCondition":
+                try:
+                    info["joint_name"] = cond._joint.get_name() if hasattr(cond._joint, 'get_name') else "unknown"
+                    info["threshold"] = float(cond._pos)
+                    info["current_pos"] = float(cond._joint.get_joint_position())
+                    info["original_pos"] = float(cond._original_pos)
+                except:
+                    pass
+            elif condition_type == "DetectedCondition":
+                try:
+                    info["object_name"] = cond._obj.get_name() if hasattr(cond._obj, 'get_name') else "unknown"
+                    info["detector_name"] = cond._detector.get_name() if hasattr(cond._detector, 'get_name') else "unknown"
+                    info["negated"] = cond._negated
+                except:
+                    pass
+            elif condition_type == "GraspedCondition":
+                try:
+                    info["object_handle"] = int(cond._object_handle)
+                    info["grasped_objects_count"] = len(cond._gripper.get_grasped_objects())
+                except:
+                    pass
+            elif condition_type == "NothingGrasped":
+                try:
+                    info["grasped_objects_count"] = len(cond._gripper.get_grasped_objects())
+                except:
+                    pass
+            elif condition_type == "DetectedSeveralCondition":
+                try:
+                    info["number_needed"] = cond._number_needed
+                    detected_count = sum(1 for ob in cond._objects if cond._detector.is_detected(ob))
+                    info["detected_count"] = detected_count
+                except:
+                    pass
+
+            return info
+
+        success_conditions_details = [
+            get_condition_info(cond, i)
+            for i, cond in enumerate(self._success_conditions)
+        ]
+
+        fail_conditions_details = [
+            get_condition_info(cond, i)
+            for i, cond in enumerate(self._fail_conditions)
+        ]
+
+        all_success_met = all(cond["met"] for cond in success_conditions_details) if success_conditions_details else True
+        any_fail_met = any(cond["met"] for cond in fail_conditions_details) if fail_conditions_details else False
+
+        overall_success = all_success_met and not any_fail_met
+
+        return {
+            "overall_success": overall_success,
+            "success_conditions": success_conditions_details,
+            "fail_conditions": fail_conditions_details,
+            "num_success_conditions": len(success_conditions_details),
+            "num_fail_conditions": len(fail_conditions_details),
+            "all_success_conditions_met": all_success_met,
+            "any_fail_condition_met": any_fail_met
+        }
+
     def load(self) -> Object:
         if Object.exists(self.name):
             return Dummy(self.name)

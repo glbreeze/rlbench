@@ -5,10 +5,13 @@ from rlbench.backend.observation import Observation
 
 class Demo(object):
 
-    def __init__(self, observations: List[Observation], random_seed=None, num_reset_attempts=None):
+    def __init__(self, observations: List[Observation], random_seed=None, num_reset_attempts=None,
+                 success=True, success_details=None):
         self._observations = observations
         self.random_seed = random_seed
         self.num_reset_attempts = num_reset_attempts
+        self.success = success
+        self.success_details = success_details if success_details is not None else {}
 
     def __len__(self):
         return len(self._observations)

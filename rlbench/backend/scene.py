@@ -445,10 +445,12 @@ class Scene(object):
                     break
 
         success, term = self.task.success()
-        if not success:
-            raise DemoError('Demo was completed, but was not successful.',
-                            self.task)
-        processed_demo = Demo(demo)
+        success_details = self.task.get_success_details()
+        processed_demo = Demo(
+            demo,
+            success=success,
+            success_details=success_details
+        )
         processed_demo.num_reset_attempts = self._attempts + 1
         return processed_demo
 
